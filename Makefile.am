@@ -93,6 +93,9 @@ EXTRA_DIST = \
 	boot.sh \
 	build.sh \
 	restart.sh \
+	mcp_gemini_client.py \
+	.env \
+	.env.example \
 	$(MAN_FRAGMENTS) \
 	$(MAN_ROOTS) \
 	.mailmap

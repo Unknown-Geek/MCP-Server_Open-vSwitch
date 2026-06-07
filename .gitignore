@@ -29,6 +29,7 @@
 .dirstamp
 .libs
 .tmp_versions
+.env
 /Makefile
 /Makefile.in
 /aclocal.m4
@@ -76,3 +77,4 @@ testsuite.tmp.orig
 /Documentation/_build
 /.venv
 /cxx-check
+/.env
