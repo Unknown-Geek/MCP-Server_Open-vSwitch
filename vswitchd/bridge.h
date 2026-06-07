@@ -36,5 +36,9 @@ bool bridge_mcp_get_flows(const struct json *arguments,
                           struct json **resultp, char **errorp);
 bool bridge_mcp_get_port_stats(const struct json *arguments,
                                struct json **resultp, char **errorp);
+bool bridge_mcp_set_vlan(const struct json *arguments,
+                         struct json **resultp, char **errorp);
+bool bridge_mcp_set_port_state(const struct json *arguments,
+                               struct json **resultp, char **errorp);
 
 #endif /* bridge.h */

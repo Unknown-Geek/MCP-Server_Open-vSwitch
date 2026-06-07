@@ -1,5 +1,9 @@
 # Lightweight MCP Server in C
 
+This repository contains a lightweight Model Context Protocol (MCP) server integrated directly into `ovs-vswitchd`.
+
+---
+
 ## Module 1 & 2 - Basic MCP Server Integration
 
 ### Files Added
@@ -13,15 +17,16 @@
   - Called `mcp_server_init()` during startup.
   - Called `mcp_server_run()` inside the main loop.
   - Called `mcp_server_close()` during shutdown.
-
 - `vswitchd/automake.mk`
-  - Added `mcp_server.c` so it gets compiled.
+  - Added `mcp_server.c` to build sources.
 
 ### Functionality
 
 - **Server Port:** `8080`
 - **Endpoint:** `POST /mcp`
 - **Response:** `{"status": "ok"}`
+
+---
 
 ## Module 3 - MCP Tool Routing and Hardening
 
@@ -60,6 +65,9 @@
 - **Request Safety:** method and path checks, JSON validation, content-length validation, max request-size guard
 - **Response Style:** structured JSON success and error responses for easier debugging and integration
 
+---
+
+
 ## Setup and Run
 
 ### Build OVS
@@ -67,13 +75,14 @@
 ```bash
 ./boot.sh
 ./configure
-make -j4
+make -j"$(nproc)"
+
 sudo make install
 ```
 
 ### Start OVS
 
-Start database:
+Start database server:
 
 ```bash
 sudo ovsdb-server \
@@ -88,14 +97,35 @@ Initialize DB:
 sudo ovs-vsctl --no-wait init
 ```
 
-Start switch:
+Start switch daemon:
 
 ```bash
 sudo ovs-vswitchd --pidfile --detach
 ```
 
-### Test Endpoint
+### Testing the MCP API
 
+To set the VLAN tag to `100`:
 ```bash
-curl -X POST http://localhost:8080/mcp
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"id": "1", "tool": "switch.set_vlan", "arguments": {"bridge": "br0", "port": "br0", "vlan": 100}}' \
+  http://localhost:8080/mcp
+```
+
+Verify tag is set:
+```bash
+sudo ovs-vsctl get port br0 tag
+```
+
+### AI Assistant Chat
+
+Configure your API Key and choice of model inside `.env`:
+```env
+GEMINI_API_KEY="AQ.your-key-here"
+GEMINI_MODEL="gemini-3.1-flash-lite"
+```
+
+Start the interactive chat interface:
+```bash
+make chat
 ```

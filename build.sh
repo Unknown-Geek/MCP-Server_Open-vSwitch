@@ -31,6 +31,13 @@ sudo pkill -x ovs-vswitchd || true
 sudo pkill -x ovsdb-server || true
 sudo rm -f "$DB_SOCK" "$OVSDB_PIDFILE" "$VSWITCHD_PIDFILE"
 
+echo "[1.5/8] Install Python dependencies..."
+if ! command -v pip &> /dev/null && ! command -v pip3 &> /dev/null; then
+  echo "pip not found. Installing python3-pip..."
+  sudo apt-get update && sudo apt-get install -y python3-pip
+fi
+pip install google-genai
+
 echo "[2/8] Clean previous build artifacts..."
 if [ -f Makefile ]; then
   make distclean || true

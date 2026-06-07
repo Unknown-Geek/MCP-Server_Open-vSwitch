@@ -171,6 +171,10 @@ mcp_dispatch(const char *tool, const struct json *arguments,
         return bridge_mcp_get_flows(arguments, resultp, errorp);
     } else if (!strcmp(tool, "switch.get_port_stats")) {
         return bridge_mcp_get_port_stats(arguments, resultp, errorp);
+    } else if (!strcmp(tool, "switch.set_vlan")) {
+        return bridge_mcp_set_vlan(arguments, resultp, errorp);
+    } else if (!strcmp(tool, "switch.set_port_state")) {
+        return bridge_mcp_set_port_state(arguments, resultp, errorp);
     }
 
     *errorp = xasprintf("unsupported tool: %s", tool);

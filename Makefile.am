@@ -75,7 +75,6 @@ EXTRA_DIST = \
 	CONTRIBUTING.rst \
 	LICENSE \
 	MAINTAINERS.rst \
-	README.rst \
 	README.md \
 	NOTICE \
 	.ci/dpdk-build.sh \
@@ -94,6 +93,9 @@ EXTRA_DIST = \
 	boot.sh \
 	build.sh \
 	restart.sh \
+	mcp_gemini_client.py \
+	.env \
+	.env.example \
 	$(MAN_FRAGMENTS) \
 	$(MAN_ROOTS) \
 	.mailmap
@@ -495,3 +497,7 @@ include datapath-windows/include/automake.mk
 include windows/automake.mk
 include selinux/automake.mk
 include build-aux/automake.mk
+
+.PHONY: chat
+chat:
+	$(PYTHON3) $(srcdir)/mcp_gemini_client.py
