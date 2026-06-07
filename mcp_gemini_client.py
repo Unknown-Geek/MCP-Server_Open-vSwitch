@@ -67,27 +67,28 @@ available_tools = {
 }
 
 def load_env():
-    if not os.environ.get("GEMINI_API_KEY"):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        env_paths = [
-            os.path.join(base_dir, ".env"),
-            os.path.join(os.getcwd(), ".env")
-        ]
-        for path in env_paths:
-            if os.path.exists(path):
-                try:
-                    with open(path, "r") as f:
-                        for line in f:
-                            line = line.strip()
-                            if not line or line.startswith("#"):
-                                continue
-                            if "=" in line:
-                                key, val = line.split("=", 1)
-                                if key.strip() == "GEMINI_API_KEY":
-                                    os.environ["GEMINI_API_KEY"] = val.strip().strip('"').strip("'")
-                                    return
-                except Exception:
-                    pass
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    env_paths = [
+        os.path.join(base_dir, ".env"),
+        os.path.join(os.getcwd(), ".env")
+    ]
+    for path in env_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        if "=" in line:
+                            key, val = line.split("=", 1)
+                            key = key.strip()
+                            val = val.strip().strip('"').strip("'")
+                            if key:
+                                os.environ[key] = val
+                break
+            except Exception:
+                pass
 
 def main():
     load_env()
@@ -95,13 +96,14 @@ def main():
         print("Error: GEMINI_API_KEY environment variable is not set.")
         return
 
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     client = genai.Client()
     config = types.GenerateContentConfig(
         tools=list(available_tools.values()),
         temperature=0.0
     )
 
-    print("=== Gemini OVS Assistant CLI (type 'exit' to quit) ===")
+    print(f"=== Gemini OVS Assistant CLI ({model_name}) (type 'exit' to quit) ===")
     while True:
         prompt = input("\nUser > ")
         if prompt.lower() in ["exit", "quit"]:
@@ -109,7 +111,7 @@ def main():
 
         try:
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=model_name,
                 contents=prompt,
                 config=config
             )
@@ -121,7 +123,7 @@ def main():
                         result = available_tools[call.name](**call.args)
                         # Send tool execution result back to the model
                         follow_up = client.models.generate_content(
-                            model='gemini-2.5-flash',
+                            model=model_name,
                             contents=[
                                 types.Content(role="user", parts=[types.Part.from_text(text=prompt)]),
                                 response.candidates[0].content,

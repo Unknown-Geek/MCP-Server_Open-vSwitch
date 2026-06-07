@@ -80,6 +80,25 @@ This repository contains a lightweight Model Context Protocol (MCP) server integ
 
 ---
 
+## Module 6 - LLM Integration (Google Gemini API)
+
+This module integrates the Google Gemini API with the OVS MCP server, enabling natural language command execution (e.g. *"Show ports"*, *"Set VLAN on br0 to 100"*).
+
+### Files Added
+- `mcp_gemini_client.py` (Python LLM client with local `.env` and function calling tool integration)
+- `.env.example` (Template environment file)
+
+### Files Modified
+- `.gitignore` (Added `.env` to prevent committing secrets)
+- `Makefile.am` (Registered the client and added a custom `.PHONY: chat` build target)
+- `build.sh` (Added automatic check/installation for `python3-pip` and `google-genai` library)
+
+### Functionality
+- **API Environment Loader:** Reads model name (`GEMINI_MODEL`) and API key (`GEMINI_API_KEY`) from local `.env`.
+- **Tool Mapping:** Connects Gemini's function calling mechanism to target OVS MCP REST API tools (`switch.get_ports`, `switch.get_flows`, `switch.get_port_stats`, `switch.set_vlan`, `switch.set_port_state`).
+
+---
+
 ## Setup and Run
 
 ### Build OVS
@@ -123,4 +142,17 @@ curl -X POST -H "Content-Type: application/json" \
 Verify tag is set:
 ```bash
 sudo ovs-vsctl get port br0 tag
+```
+
+### AI Assistant Chat
+
+Configure your API Key and choice of model inside `.env`:
+```env
+GEMINI_API_KEY="AQ.your-key-here"
+GEMINI_MODEL="gemini-3.1-flash-lite"
+```
+
+Start the interactive chat interface:
+```bash
+make chat
 ```
