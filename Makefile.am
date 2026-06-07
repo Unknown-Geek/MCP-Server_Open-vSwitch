@@ -76,6 +76,7 @@ EXTRA_DIST = \
 	LICENSE \
 	MAINTAINERS.rst \
 	README.rst \
+	README.md \
 	NOTICE \
 	.ci/dpdk-build.sh \
 	.ci/dpdk-prepare.sh \
@@ -91,6 +92,8 @@ EXTRA_DIST = \
 	.readthedocs.yaml \
 	appveyor.yml \
 	boot.sh \
+	build.sh \
+	restart.sh \
 	$(MAN_FRAGMENTS) \
 	$(MAN_ROOTS) \
 	.mailmap

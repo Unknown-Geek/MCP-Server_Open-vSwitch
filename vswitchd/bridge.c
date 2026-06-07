@@ -3740,6 +3740,91 @@ bridge_lookup(const char *name)
     return NULL;
 }
 
+static const struct json *
+bridge_mcp_arg(const struct json *arguments, const char *key)
+{
+    if (!arguments || arguments->type != JSON_OBJECT) {
+        return NULL;
+    }
+    return shash_find_data(json_object(arguments), key);
+}
+
+static const char *
+bridge_mcp_arg_string(const struct json *arguments, const char *key)
+{
+    const struct json *j = bridge_mcp_arg(arguments, key);
+    return (j && j->type == JSON_STRING) ? json_string(j) : NULL;
+}
+
+bool bridge_mcp_get_ports(const struct json *arguments OVS_UNUSED,
+                          struct json **resultp, char **errorp OVS_UNUSED)
+{
+    struct json *ports = json_array_create_empty();
+
+    struct json *entry1 = json_object_create();
+    json_object_put_string(entry1, "bridge", "dummy-br0");
+    json_object_put_string(entry1, "port", "dummy-p0");
+    json_object_put_string(entry1, "interface", "dummy-i0");
+    json_object_put(entry1, "ofp_port", json_integer_create(1));
+    json_array_add(ports, entry1);
+
+    struct json *entry2 = json_object_create();
+    json_object_put_string(entry2, "bridge", "dummy-br0");
+    json_object_put_string(entry2, "port", "dummy-p1");
+    json_object_put_string(entry2, "interface", "dummy-i1");
+    json_object_put(entry2, "ofp_port", json_integer_create(2));
+    json_array_add(ports, entry2);
+
+    *resultp = ports;
+    return true;
+}
+
+bool bridge_mcp_get_flows(const struct json *arguments,
+                          struct json **resultp, char **errorp)
+{
+    const char *bridge_name = bridge_mcp_arg_string(arguments, "bridge");
+    if (!bridge_name) {
+        *errorp = xstrdup("missing arguments.bridge");
+        return false;
+    }
+
+    struct json *out = json_object_create();
+    json_object_put_string(out, "bridge", bridge_name);
+    json_object_put_string(out, "flows_text",
+                           "dummy flow: priority=100,actions=output:1\n"
+                           "dummy flow: priority=0,actions=drop\n");
+
+    *resultp = out;
+    return true;
+}
+
+bool bridge_mcp_get_port_stats(const struct json *arguments,
+                               struct json **resultp, char **errorp)
+{
+    const char *bridge_name = bridge_mcp_arg_string(arguments, "bridge");
+    const char *port_name = bridge_mcp_arg_string(arguments, "port");
+    struct json *arr = json_array_create_empty();
+
+    if (!bridge_name) {
+        *errorp = xstrdup("missing arguments.bridge");
+        json_destroy(arr);
+        return false;
+    }
+
+    struct json *entry = json_object_create();
+    json_object_put_string(entry, "bridge", bridge_name);
+    json_object_put_string(entry, "port", port_name ? port_name : "dummy-p0");
+    json_object_put_string(entry, "interface", port_name ? port_name : "dummy-i0");
+    json_object_put(entry, "rx_packets", json_integer_create(100));
+    json_object_put(entry, "tx_packets", json_integer_create(200));
+    json_object_put(entry, "rx_bytes", json_integer_create(1000));
+    json_object_put(entry, "tx_bytes", json_integer_create(2000));
+    json_array_add(arr, entry);
+
+    *resultp = arr;
+    return true;
+}
+
 /* Handle requests for a listing of all flows known by the OpenFlow
  * stack, including those normally hidden. */
 static void
