@@ -75,7 +75,6 @@ EXTRA_DIST = \
 	CONTRIBUTING.rst \
 	LICENSE \
 	MAINTAINERS.rst \
-	README.rst \
 	README.md \
 	NOTICE \
 	.ci/dpdk-build.sh \

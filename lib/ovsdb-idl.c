@@ -622,6 +622,12 @@ ovsdb_idl_verify_write_only(struct ovsdb_idl *idl)
     idl->verify_write_only = true;
 }
 
+void
+ovsdb_idl_disable_verify_write_only(struct ovsdb_idl *idl)
+{
+    idl->verify_write_only = false;
+}
+
 /* Returns true if 'idl' is currently connected or trying to connect
  * and a negative response to a schema request has not been received */
 bool

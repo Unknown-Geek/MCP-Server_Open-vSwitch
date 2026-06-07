@@ -3899,6 +3899,123 @@ bool bridge_mcp_get_port_stats(const struct json *arguments,
     return true;
 }
 
+bool bridge_mcp_set_vlan(const struct json *arguments,
+                         struct json **resultp, char **errorp)
+{
+    const char *bridge_name = bridge_mcp_arg_string(arguments, "bridge");
+    const char *port_name = bridge_mcp_arg_string(arguments, "port");
+    const struct json *vlan_j = bridge_mcp_arg(arguments, "vlan");
+    struct bridge *br;
+    struct port *port;
+    int64_t vlan_val;
+
+    if (!bridge_name || !port_name || !vlan_j) {
+        *errorp = xstrdup("missing arguments.bridge, arguments.port, or arguments.vlan");
+        return false;
+    }
+
+    if (vlan_j->type != JSON_INTEGER) {
+        *errorp = xstrdup("arguments.vlan must be an integer");
+        return false;
+    }
+    vlan_val = json_integer(vlan_j);
+    if (vlan_val < 0 || vlan_val > 4095) {
+        *errorp = xasprintf("invalid VLAN tag: %"PRId64" (must be 0-4095)", vlan_val);
+        return false;
+    }
+
+    br = bridge_lookup(bridge_name);
+    if (!br) {
+        *errorp = xasprintf("unknown bridge: %s", bridge_name);
+        return false;
+    }
+
+    port = port_lookup(br, port_name);
+    if (!port) {
+        *errorp = xasprintf("unknown port: %s on bridge %s", port_name, bridge_name);
+        return false;
+    }
+
+    /* Temporarily disable verification to allow writing to Port:tag */
+    ovsdb_idl_disable_verify_write_only(idl);
+
+    /* Start OVSDB transaction via IDL */
+    struct ovsdb_idl_txn *txn = ovsdb_idl_txn_create(idl);
+    if (vlan_val > 0) {
+        ovsrec_port_set_tag(port->cfg, &vlan_val, 1);
+    } else {
+        /* Clear tag for trunk or untagged port */
+        ovsrec_port_set_tag(port->cfg, NULL, 0);
+    }
+    
+    enum ovsdb_idl_txn_status status = ovsdb_idl_txn_commit_block(txn);
+    if (status != TXN_SUCCESS && status != TXN_UNCHANGED) {
+        *errorp = xasprintf("transaction failed: %s",
+                            ovsdb_idl_txn_status_to_string(status));
+        ovsdb_idl_txn_destroy(txn);
+        /* Re-enable write-only verification */
+        ovsdb_idl_verify_write_only(idl);
+        return false;
+    }
+    ovsdb_idl_txn_destroy(txn);
+
+    /* Re-enable write-only verification */
+    ovsdb_idl_verify_write_only(idl);
+
+    *resultp = json_object_create();
+    json_object_put_string(*resultp, "status", "success");
+    return true;
+}
+
+bool bridge_mcp_set_port_state(const struct json *arguments,
+                               struct json **resultp, char **errorp)
+{
+    const char *bridge_name = bridge_mcp_arg_string(arguments, "bridge");
+    const char *port_name = bridge_mcp_arg_string(arguments, "port");
+    const struct json *enabled_j = bridge_mcp_arg(arguments, "enabled");
+    struct bridge *br;
+    struct port *port;
+    bool enabled;
+
+    if (!bridge_name || !port_name || !enabled_j) {
+        *errorp = xstrdup("missing arguments.bridge, arguments.port, or arguments.enabled");
+        return false;
+    }
+
+    if (enabled_j->type != JSON_TRUE && enabled_j->type != JSON_FALSE) {
+        *errorp = xstrdup("arguments.enabled must be a boolean");
+        return false;
+    }
+    enabled = (enabled_j->type == JSON_TRUE);
+
+    br = bridge_lookup(bridge_name);
+    if (!br) {
+        *errorp = xasprintf("unknown bridge: %s", bridge_name);
+        return false;
+    }
+
+    port = port_lookup(br, port_name);
+    if (!port) {
+        *errorp = xasprintf("unknown port: %s on bridge %s", port_name, bridge_name);
+        return false;
+    }
+
+    /* Modify administrative state on all interfaces of the port */
+    struct iface *iface;
+    LIST_FOR_EACH (iface, port_elem, &port->ifaces) {
+        if (enabled) {
+            netdev_turn_flags_on(iface->netdev, NETDEV_UP, NULL);
+        } else {
+            netdev_turn_flags_off(iface->netdev, NETDEV_UP, NULL);
+        }
+    }
+
+    *resultp = json_object_create();
+    json_object_put_string(*resultp, "status", "success");
+    return true;
+}
+
+
 /* Handle requests for a listing of all flows known by the OpenFlow
  * stack, including those normally hidden. */
 static void
