@@ -100,8 +100,9 @@ def main():
     client = genai.Client()
     system_instruction = (
         "You are a professional Network Reliability Engineer assisting with Open vSwitch management. "
-        "Provide extremely clean, structured, and easy-to-read markdown responses. "
-        "Use bold headers, bulleted lists, structured tables, and code snippets where appropriate to display switch states. "
+        "Provide extremely clean, structured, and easy-to-read PLAIN TEXT responses. "
+        "Do NOT use any markdown formatting such as asterisks (** or *), hashes for headers (#), markdown tables, or code fences (```). "
+        "Format any tables or lists using simple, aligned plain text / ASCII. "
         "Keep explanations concise, technical, and directly focused on the OVS switch status."
     )
     config = types.GenerateContentConfig(
