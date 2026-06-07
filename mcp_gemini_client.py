@@ -98,9 +98,16 @@ def main():
 
     model_name = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     client = genai.Client()
+    system_instruction = (
+        "You are a professional Network Reliability Engineer assisting with Open vSwitch management. "
+        "Provide extremely clean, structured, and easy-to-read markdown responses. "
+        "Use bold headers, bulleted lists, structured tables, and code snippets where appropriate to display switch states. "
+        "Keep explanations concise, technical, and directly focused on the OVS switch status."
+    )
     config = types.GenerateContentConfig(
         tools=list(available_tools.values()),
-        temperature=0.0
+        temperature=0.0,
+        system_instruction=system_instruction
     )
 
     print(f"=== Gemini OVS Assistant CLI ({model_name}) (type 'exit' to quit) ===")
@@ -131,7 +138,8 @@ def main():
                                     role="user",
                                     parts=[types.Part.from_function_response(name=call.name, response={"result": result})]
                                 )
-                            ]
+                            ],
+                            config=config
                         )
                         print(f"Assistant > {follow_up.text}")
             else:
