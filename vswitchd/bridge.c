@@ -3756,53 +3756,92 @@ bridge_mcp_arg_string(const struct json *arguments, const char *key)
     return (j && j->type == JSON_STRING) ? json_string(j) : NULL;
 }
 
-bool bridge_mcp_get_ports(const struct json *arguments OVS_UNUSED,
-                          struct json **resultp, char **errorp OVS_UNUSED)
+bool bridge_mcp_get_ports(const struct json *arguments,
+                     struct json **resultp, char **errorp)
 {
+    const char *bridge_name = bridge_mcp_arg_string(arguments, "bridge");
     struct json *ports = json_array_create_empty();
+    struct bridge *br;
 
-    struct json *entry1 = json_object_create();
-    json_object_put_string(entry1, "bridge", "dummy-br0");
-    json_object_put_string(entry1, "port", "dummy-p0");
-    json_object_put_string(entry1, "interface", "dummy-i0");
-    json_object_put(entry1, "ofp_port", json_integer_create(1));
-    json_array_add(ports, entry1);
+    if (bridge_name) {
+        br = bridge_lookup(bridge_name);
+        if (!br) {
+            *errorp = xasprintf("unknown bridge: %s", bridge_name);
+            json_destroy(ports);
+            return false;
+        }
 
-    struct json *entry2 = json_object_create();
-    json_object_put_string(entry2, "bridge", "dummy-br0");
-    json_object_put_string(entry2, "port", "dummy-p1");
-    json_object_put_string(entry2, "interface", "dummy-i1");
-    json_object_put(entry2, "ofp_port", json_integer_create(2));
-    json_array_add(ports, entry2);
+        struct port *port;
+        HMAP_FOR_EACH (port, hmap_node, &br->ports) {
+            struct iface *iface;
+            LIST_FOR_EACH (iface, port_elem, &port->ifaces) {
+                struct json *entry = json_object_create();
+                json_object_put_string(entry, "bridge", br->name);
+                json_object_put_string(entry, "port", port->name);
+                json_object_put_string(entry, "interface", iface->name);
+                json_object_put(entry, "ofp_port",
+                                json_integer_create((long long) iface->ofp_port));
+                json_array_add(ports, entry);
+            }
+        }
+    } else {
+        HMAP_FOR_EACH (br, node, &all_bridges) {
+            struct port *port;
+            HMAP_FOR_EACH (port, hmap_node, &br->ports) {
+                struct iface *iface;
+                LIST_FOR_EACH (iface, port_elem, &port->ifaces) {
+                    struct json *entry = json_object_create();
+                    json_object_put_string(entry, "bridge", br->name);
+                    json_object_put_string(entry, "port", port->name);
+                    json_object_put_string(entry, "interface", iface->name);
+                    json_object_put(entry, "ofp_port",
+                                    json_integer_create((long long) iface->ofp_port));
+                    json_array_add(ports, entry);
+                }
+            }
+        }
+    }
 
     *resultp = ports;
     return true;
 }
 
 bool bridge_mcp_get_flows(const struct json *arguments,
-                          struct json **resultp, char **errorp)
+                     struct json **resultp, char **errorp)
 {
     const char *bridge_name = bridge_mcp_arg_string(arguments, "bridge");
+    struct bridge *br;
+    struct ds ds = DS_EMPTY_INITIALIZER;
+    struct json *out;
+
     if (!bridge_name) {
         *errorp = xstrdup("missing arguments.bridge");
         return false;
     }
 
-    struct json *out = json_object_create();
-    json_object_put_string(out, "bridge", bridge_name);
-    json_object_put_string(out, "flows_text",
-                           "dummy flow: priority=100,actions=output:1\n"
-                           "dummy flow: priority=0,actions=drop\n");
+    br = bridge_lookup(bridge_name);
+    if (!br) {
+        *errorp = xasprintf("unknown bridge: %s", bridge_name);
+        return false;
+    }
+
+    ofproto_get_all_flows(br->ofproto, &ds, false);
+
+    out = json_object_create();
+    json_object_put_string(out, "bridge", br->name);
+    json_object_put_string(out, "flows_text", ds_cstr(&ds));
+    ds_destroy(&ds);
 
     *resultp = out;
     return true;
 }
 
 bool bridge_mcp_get_port_stats(const struct json *arguments,
-                               struct json **resultp, char **errorp)
+                          struct json **resultp, char **errorp)
 {
     const char *bridge_name = bridge_mcp_arg_string(arguments, "bridge");
     const char *port_name = bridge_mcp_arg_string(arguments, "port");
+    struct bridge *br;
     struct json *arr = json_array_create_empty();
 
     if (!bridge_name) {
@@ -3811,15 +3850,50 @@ bool bridge_mcp_get_port_stats(const struct json *arguments,
         return false;
     }
 
-    struct json *entry = json_object_create();
-    json_object_put_string(entry, "bridge", bridge_name);
-    json_object_put_string(entry, "port", port_name ? port_name : "dummy-p0");
-    json_object_put_string(entry, "interface", port_name ? port_name : "dummy-i0");
-    json_object_put(entry, "rx_packets", json_integer_create(100));
-    json_object_put(entry, "tx_packets", json_integer_create(200));
-    json_object_put(entry, "rx_bytes", json_integer_create(1000));
-    json_object_put(entry, "tx_bytes", json_integer_create(2000));
-    json_array_add(arr, entry);
+    br = bridge_lookup(bridge_name);
+    if (!br) {
+        *errorp = xasprintf("unknown bridge: %s", bridge_name);
+        json_destroy(arr);
+        return false;
+    }
+
+    struct port *port;
+    HMAP_FOR_EACH (port, hmap_node, &br->ports) {
+        if (port_name && strcmp(port_name, port->name)) {
+            continue;
+        }
+
+        struct iface *iface;
+        LIST_FOR_EACH (iface, port_elem, &port->ifaces) {
+            struct netdev_stats stats;
+            struct json *entry = json_object_create();
+
+            netdev_get_stats(iface->netdev, &stats);
+
+            json_object_put_string(entry, "bridge", br->name);
+            json_object_put_string(entry, "port", port->name);
+            json_object_put_string(entry, "interface", iface->name);
+
+            if (stats.rx_packets != UINT64_MAX) {
+                json_object_put(entry, "rx_packets",
+                                json_integer_create((long long) stats.rx_packets));
+            }
+            if (stats.tx_packets != UINT64_MAX) {
+                json_object_put(entry, "tx_packets",
+                                json_integer_create((long long) stats.tx_packets));
+            }
+            if (stats.rx_bytes != UINT64_MAX) {
+                json_object_put(entry, "rx_bytes",
+                                json_integer_create((long long) stats.rx_bytes));
+            }
+            if (stats.tx_bytes != UINT64_MAX) {
+                json_object_put(entry, "tx_bytes",
+                                json_integer_create((long long) stats.tx_bytes));
+            }
+
+            json_array_add(arr, entry);
+        }
+    }
 
     *resultp = arr;
     return true;
