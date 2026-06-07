@@ -1,64 +1,84 @@
 # Lightweight MCP Server in C
 
+This repository contains a lightweight Model Context Protocol (MCP) server integrated directly into `ovs-vswitchd`.
+
+---
+
 ## Module 1 & 2 - Basic MCP Server Integration
 
 ### Files Added
-
 - `vswitchd/mcp_server.c`
 - `vswitchd/mcp_server.h`
 
 ### Files Modified
-
 - `vswitchd/ovs-vswitchd.c`
   - Called `mcp_server_init()` during startup.
   - Called `mcp_server_run()` inside the main loop.
   - Called `mcp_server_close()` during shutdown.
-
 - `vswitchd/automake.mk`
-  - Added `mcp_server.c` so it gets compiled.
+  - Added `mcp_server.c` to build sources.
 
 ### Functionality
-
 - **Server Port:** `8080`
 - **Endpoint:** `POST /mcp`
 - **Response:** `{"status": "ok"}`
 
-## Module 3 - MCP Tool Routing and Hardening
+---
+
+## Module 3 - MCP Tool Routing and Mock Handlers
 
 ### Files Modified
-
 - `vswitchd/mcp_server.c`
-  - Added HTTP request parsing and JSON dispatcher so MCP calls can route to real tool handlers.
+  - Added HTTP request parsing and JSON dispatcher so MCP calls can route to tool handlers.
   - Added non-blocking socket handling and `mcp_server_wait()` polling so `ovs-vswitchd` stays responsive.
   - Added `Content-Length` validation and request-size checks so malformed or incomplete requests are handled safely.
-  - Switched startup and shutdown logs to OVS `VLOG` style so runtime logs are consistent with the rest of OVS.
-
+  - Switched startup and shutdown logs to OVS `VLOG` style.
 - `vswitchd/mcp_server.h`
-  - Added `mcp_server_wait()` declaration so the main loop can register MCP socket wakeups.
-
+  - Declared `mcp_server_wait()` for poll loop wakeups.
 - `vswitchd/ovs-vswitchd.c`
-  - Hooked `mcp_server_wait()` into the wait phase so incoming MCP traffic wakes the poll loop correctly.
+  - Hooked `mcp_server_wait()` into the wait phase.
+- `vswitchd/bridge.c` / `vswitchd/bridge.h`
+  - Created initial mock handlers for `switch.get_ports`, `switch.get_flows`, and `switch.get_port_stats` returning hardcoded/static JSON data.
 
-- `vswitchd/bridge.h`
-  - Added MCP bridge handler APIs so request dispatch can call bridge data collectors directly.
+### Functionality
+- **Supported MCP Tools:** `switch.get_ports`, `switch.get_flows`, `switch.get_port_stats`
+- **Request Safety:** method and path validation, JSON checks, max size guard (64KB).
 
+---
+
+## Module 4 - Connect MCP to OVS Internals with Real Data
+
+### Files Modified
 - `vswitchd/bridge.c`
-  - Implemented handlers for `switch.get_ports`, `switch.get_flows`, and `switch.get_port_stats` so MCP returns useful switch data.
+  - Replaced the mock code with real-data retrieval from OVS structures:
+    - `switch.get_ports`: Traverses the live `all_bridges` list to construct active bridges, ports, and interface lists.
+    - `switch.get_flows`: Queries active OpenFlow engine state using `ofproto_get_all_flows()`.
+    - `switch.get_port_stats`: Queries interface statistics via `netdev_get_stats()`.
 
-- `restart.sh`
-  - Simplified to incremental build, install, and restart flow so day-to-day development is faster.
+---
 
-- `build.sh`
-  - Kept a full bootstrap path so a clean rebuild remains one command when needed.
+## Module 5 - SET Operations (VLAN and Port Link State)
 
-- `Makefile.am`
-  - Added helper scripts to `EXTRA_DIST` so dist checks pass when scripts are tracked in Git.
+### Files Modified
+- `vswitchd/bridge.h` / `vswitchd/bridge.c`
+  - Implemented `bridge_mcp_set_vlan()` for VLAN tags.
+  - Implemented `bridge_mcp_set_port_state()` for administrative port up/down flags.
+- `vswitchd/mcp_server.c`
+  - Registered `switch.set_vlan` and `switch.set_port_state` tools.
+- `lib/ovsdb-idl.c` / `lib/ovsdb-idl.h`
+  - Created `ovsdb_idl_disable_verify_write_only()` and `ovsdb_idl_verify_write_only()` helpers to bypass write verification constraints on read/write columns.
 
 ### Functionality
 
-- **Supported MCP Tools:** `switch.get_ports`, `switch.get_flows`, `switch.get_port_stats`
-- **Request Safety:** method and path checks, JSON validation, content-length validation, max request-size guard
-- **Response Style:** structured JSON success and error responses for easier debugging and integration
+1. **VLAN Configuration (`switch.set_vlan`)**
+   - Arguments: `{"bridge": "<bridge>", "port": "<port>", "vlan": <vlan_val>}`
+   - Sets the access VLAN tag (0-4095) using a synchronous OVSDB transaction commit (`ovsdb_idl_txn_commit_block`). This blocks until the transaction is acknowledged by `ovsdb-server`, preventing race conditions with immediate database reads. Setting `vlan` to `0` clears the tag.
+
+2. **Port State Configuration (`switch.set_port_state`)**
+   - Arguments: `{"bridge": "<bridge>", "port": "<port>", "enabled": <bool>}`
+   - Administratively enables or disables the interface link flags (UP/DOWN) synchronously using `netdev_turn_flags_on()` and `netdev_turn_flags_off()`.
+
+---
 
 ## Setup and Run
 
@@ -67,14 +87,13 @@
 ```bash
 ./boot.sh
 ./configure
-make -j4
+make -j"$(nproc)"
 sudo make install
 ```
 
 ### Start OVS
 
-Start database:
-
+Start database server:
 ```bash
 sudo ovsdb-server \
   --remote=punix:/usr/local/var/run/openvswitch/db.sock \
@@ -83,19 +102,25 @@ sudo ovsdb-server \
 ```
 
 Initialize DB:
-
 ```bash
 sudo ovs-vsctl --no-wait init
 ```
 
-Start switch:
-
+Start switch daemon:
 ```bash
 sudo ovs-vswitchd --pidfile --detach
 ```
 
-### Test Endpoint
+### Testing the MCP API
 
+To set the VLAN tag to `100`:
 ```bash
-curl -X POST http://localhost:8080/mcp
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"id": "1", "tool": "switch.set_vlan", "arguments": {"bridge": "br0", "port": "br0", "vlan": 100}}' \
+  http://localhost:8080/mcp
+```
+
+Verify tag is set:
+```bash
+sudo ovs-vsctl get port br0 tag
 ```
