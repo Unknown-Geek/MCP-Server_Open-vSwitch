@@ -1,5 +1,13 @@
 # Lightweight MCP Server in C
 
+[![Stars](https://img.shields.io/github/stars/Unknown-Geek/MCP-Server_Open-vSwitch?style=flat)](https://github.com/Unknown-Geek/MCP-Server_Open-vSwitch/stargazers)
+[![Forks](https://img.shields.io/github/forks/Unknown-Geek/MCP-Server_Open-vSwitch?style=flat)](https://github.com/Unknown-Geek/MCP-Server_Open-vSwitch/network/members)
+[![Language](https://img.shields.io/badge/Language-C-A8B9CC.svg?logo=c&logoColor=white)](https://en.wikipedia.org/wiki/C_(programming_language))
+[![Protocol](https://img.shields.io/badge/Protocol-MCP-blue.svg)](https://modelcontextprotocol.io/)
+[![Open-vSwitch](https://img.shields.io/badge/Network-Open_vSwitch-orange.svg)](https://www.openvswitch.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+
 This repository contains a lightweight Model Context Protocol (MCP) server integrated directly into `ovs-vswitchd`.
 
 ---
